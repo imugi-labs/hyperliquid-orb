@@ -1,0 +1,49 @@
+# orb configuration. Copy to config.yaml and edit.
+# Secrets (private key, Telegram token) never go in this file: they are read from
+# environment variables or a .env file (see .env.example).
+
+network: mainnet            # mainnet | testnet
+mode: paper                 # backtest | paper | live  (CLI subcommand overrides this)
+
+market:
+  coins: [BTC, ETH]
+  interval: 4h              # 1m 5m 15m 1h 4h 1d
+  poll_seconds: 30          # paper/live: how often to check for a newly closed bar
+
+strategy:
+  name: breakout            # breakout | ema_retest
+  params:
+    lookback: 48            # bars of high/low to break (48 x 4h = 8 days)
+    ema_len: 200            # trend filter: longs only above, shorts only below
+    atr_len: 14
+    stop_atr: 2.0           # stop distance in ATRs
+    reward_r: 2.5           # take-profit at this multiple of risk
+  # ema_retest example:
+  #   name: ema_retest
+  #   params: {ema_len: 200, atr_len: 14, touch_atr: 0.5, stop_atr: 1.5, reward_r: 2.0, max_funding_8h: 0.0005}
+
+risk:
+  starting_equity: 1000     # used by backtest and paper
+  risk_per_trade: 0.01      # fraction of equity lost if the stop is hit
+  max_leverage: 3.0         # notional / equity cap per position
+  max_open_positions: 2
+  daily_loss_limit: 0.03    # stop opening trades for the UTC day after this drawdown
+  max_drawdown_kill: 0.20   # halt the bot entirely (requires manual reset)
+
+execution:
+  taker_fee: 0.00045        # Hyperliquid tier-0 perp taker fee
+  slippage_bps: 3           # simulated slippage on market fills (backtest/paper)
+  market_slippage: 0.01     # live: max slippage the SDK may take on a market order
+
+builder:
+  enabled: false            # attach a Hyperliquid builder code to every live order
+  address: ""               # your builder address (0x...)
+  fee_tenths_bps: 10        # 10 = 1 bp = 0.01% (perp cap is 0.1%)
+
+notifications:
+  telegram: false           # needs TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in env
+
+storage:
+  data_dir: data            # cached candles + funding
+  state_file: state/state.json
+  log_file: logs/orb.log

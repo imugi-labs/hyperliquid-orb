@@ -1,0 +1,12 @@
+.env
+config.yaml
+data/
+state/
+logs/
+reports/
+__pycache__/
+*.egg-info/
+.coverage
+.pytest_cache/
+.ruff_cache/
+.venv/
