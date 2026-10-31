@@ -152,3 +152,48 @@ def test_builder_config_validation():
     with pytest.raises(ValueError):
         BuilderCfg(enabled=True, address="nope")
     assert BuilderCfg(fee_tenths_bps=10).max_fee_rate_str == "0.01%"
+
+
+class LiveFakeInfo(FakeInfo):
+    """Positions/orders appear after the bulk order and vanish after market_close."""
+
+    def __init__(self, ex):
+        super().__init__()
+        self.ex = ex
+
+    def user_state(self, addr):
+        self.szi = {"BTC": 0.12} if self.ex.opened and not self.ex.closed else {}
+        return super().user_state(addr)
+
+    def open_orders(self, addr):
+        return [{"coin": "BTC", "oid": 8}, {"coin": "BTC", "oid": 9}] if self.ex.opened and not self.ex.closed else []
+
+
+class LiveFakeExchange(FakeExchange):
+    opened = closed = False
+
+    def bulk_orders(self, orders, builder=None, grouping="na"):
+        self.opened = True
+        return super().bulk_orders(orders, builder, grouping)
+
+    def market_close(self, coin, slippage=0.05, builder=None):
+        self.closed = True
+        super().market_close(coin, slippage, builder)
+
+
+def test_self_test_passes_full_cycle():
+    ex = LiveFakeExchange()
+    info = LiveFakeInfo(ex)
+    b = LiveBroker(ex, info, ADDR, {"BTC": 3}, ExecutionCfg(), BuilderCfg())
+    rows = b.self_test("BTC", sleep=lambda s: None)
+    assert [ok for _, ok, _ in rows] == [True] * 5, rows
+    entry = ex.calls[0][1][0]
+    assert 10 <= entry["sz"] * 100 <= 20  # ~$12 notional at mid 100
+    assert ("close", "BTC", None) in ex.calls and not b.positions
+
+
+def test_self_test_refuses_when_position_exists():
+    b, ex, info = make()
+    info.szi = {"BTC": 1.0}
+    rows = b.self_test("BTC", sleep=lambda s: None)
+    assert rows[0][1] is False and not ex.calls

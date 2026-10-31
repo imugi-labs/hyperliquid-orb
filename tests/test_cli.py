@@ -48,3 +48,7 @@ def test_cli_live_requires_confirmation(tmp_path):
         main(["-c", str(cfg), "live"])
     with pytest.raises(SystemExit, match="confirm-live"):
         main(["-c", str(cfg), "approve-builder"])
+    with pytest.raises(SystemExit, match="confirm-live"):
+        main(["-c", str(cfg), "selftest"])
+    with pytest.raises(SystemExit, match="testnet"):
+        main(["-c", str(cfg), "selftest", "--confirm-live"])

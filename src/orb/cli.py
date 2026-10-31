@@ -178,6 +178,21 @@ def cmd_approve_builder(cfg: Config, a) -> int:
     return 0
 
 
+def cmd_selftest(cfg: Config, a) -> int:
+    """Prove the live order path end to end with a ~$12 trade that is closed immediately."""
+    if not a.confirm_live:
+        raise SystemExit("selftest places a small real order. Re-run with --confirm-live.")
+    if cfg.network != "testnet" and not a.allow_mainnet:
+        raise SystemExit("selftest runs on testnet. Set network: testnet, or pass --allow-mainnet.")
+    rows = _live_broker(cfg).self_test(a.coin)
+    print(f"\nself-test on {cfg.network}, {a.coin}")
+    for step, ok, detail in rows:
+        print(f"  {'PASS' if ok else 'FAIL'}  {step:<30} {detail}")
+    passed = all(ok for _, ok, _ in rows)
+    print("\nALL CHECKS PASSED" if passed else "\nSELF-TEST FAILED")
+    return 0 if passed else 1
+
+
 def cmd_status(cfg: Config, a) -> int:
     paths = [Path(cfg.storage.state_file)] + sorted(Path(cfg.storage.state_file).parent.glob("*.live-*.json"))
     found = False
@@ -229,6 +244,11 @@ def build_parser() -> argparse.ArgumentParser:
     ab = sub.add_parser("approve-builder", help="approve the configured builder fee for your account")
     ab.add_argument("--confirm-live", action="store_true")
 
+    st = sub.add_parser("selftest", help="place and close a ~$12 bracketed order to prove the live path (testnet)")
+    st.add_argument("--confirm-live", action="store_true")
+    st.add_argument("--allow-mainnet", action="store_true")
+    st.add_argument("--coin", default="BTC")
+
     sub.add_parser("status", help="show saved bot state")
     return p
 
@@ -247,6 +267,7 @@ def main(argv: list[str] | None = None) -> int:
         "paper": cmd_paper,
         "live": cmd_live,
         "approve-builder": cmd_approve_builder,
+        "selftest": cmd_selftest,
         "status": cmd_status,
     }
     return cmds[a.cmd](cfg, a)

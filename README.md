@@ -70,7 +70,7 @@ src/orb/
   runner.py        real-time loop: warm-up, resume, error backoff, alerts
   state.py         crash-safe JSON state
   cli.py           command line
-tests/             55 tests, 93% coverage, no network needed
+tests/             57 tests, 93% coverage, no network needed
 ```
 
 ## Quick start
@@ -99,7 +99,9 @@ Telegram alerts: set `notifications.telegram: true`, then `TELEGRAM_BOT_TOKEN` a
 1. Create an **API wallet** in Hyperliquid (Settings → API). It can place orders but cannot withdraw.
 2. Put `HL_PRIVATE_KEY` (the API wallet key) and `HL_ACCOUNT_ADDRESS` (your main account) in `.env`.
 3. Start on testnet: `network: testnet` in `config.yaml`.
-4. `orb live --confirm-live`
+4. Prove the order path: `orb selftest --confirm-live` opens a ~$12 BTC long with its stop and target,
+   checks all three reached the exchange, then closes everything and prints PASS/FAIL per step.
+5. `orb live --confirm-live`
 
 Each entry is one request containing an IOC entry (bounded slippage), a reduce-only take-profit trigger and a reduce-only stop trigger.
 
@@ -127,6 +129,7 @@ The trading account approves it once: `orb approve-builder --confirm-live`.
 | `orb paper [--once]` | Paper trade on live data |
 | `orb live --confirm-live [--once]` | Live trade |
 | `orb approve-builder --confirm-live` | Approve the configured builder fee |
+| `orb selftest --confirm-live` | Open and close a ~$12 bracketed order to prove the live path (testnet) |
 | `orb status` | Show saved state |
 
 ## Adding a strategy
@@ -171,7 +174,7 @@ Past results do not predict future results. Not financial advice.
 ## Testing
 
 ```bash
-pytest --cov=orb      # 55 tests, ~2 s, offline
+pytest --cov=orb      # 57 tests, ~2 s, offline
 ruff check src tests
 ```
 

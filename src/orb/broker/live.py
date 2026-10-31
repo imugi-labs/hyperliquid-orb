@@ -228,6 +228,41 @@ class LiveBroker(Broker):
     def load_dict(self, d: dict) -> None:
         self.positions = {c: Position(**{**p, "side": Side(p["side"])}) for c, p in d.get("positions", {}).items()}
 
+    def self_test(self, coin: str = "BTC", notional: float = 12.0, sleep=None) -> list[tuple[str, bool, str]]:
+        """End-to-end order-path check. Opens a ~$12 long with its stop and target,
+        verifies all three reached the exchange, then closes everything.
+        Returns (step, ok, detail) rows. Intended for testnet."""
+        import time
+
+        sleep = sleep or time.sleep
+        rows: list[tuple[str, bool, str]] = []
+        if coin in self.open_coins() or abs(self._exchange_sizes().get(coin, 0.0)) > 0:
+            return [("precheck", False, f"account already has a {coin} position; close it first")]
+        mid = float(self.info.all_mids()[coin])
+        rows.append(("market data", True, f"{coin} mid {mid}"))
+        stop, tp = mid * 0.97, mid * 1.03
+        risk = notional * (mid - stop) / mid * 1.02  # slightly above min so rounding stays >= $10
+        sig = Signal(coin, Side.LONG, stop, tp, "self_test", int(time.time() * 1000))
+        msg = self.submit(sig, Budget(risk, notional * 1.5))
+        filled = coin in self.positions
+        rows.append(("atomic entry + stop + target", filled, msg))
+        if not filled:
+            return rows
+        try:
+            sleep(2)
+            size_on_ex = self._exchange_sizes().get(coin, 0.0)
+            rows.append(("position on exchange", abs(size_on_ex) > 0, f"size {size_on_ex}"))
+            triggers = [o for o in self.info.open_orders(self.account) or [] if o.get("coin") == coin]
+            rows.append(("stop + target resting", len(triggers) >= 2, f"{len(triggers)} open orders for {coin}"))
+        finally:
+            self.close_all({}, 0, "self_test")
+            sleep(2)
+            left = abs(self._exchange_sizes().get(coin, 0.0))
+            orders = [o for o in self.info.open_orders(self.account) or [] if o.get("coin") == coin]
+            self.positions.pop(coin, None)
+            rows.append(("closed and cleaned up", left == 0 and not orders, f"size {left}, open orders {len(orders)}"))
+        return rows
+
     def approve_builder(self) -> Any:
         if not self.bcfg.enabled:
             raise RuntimeError("builder.enabled is false in config")
